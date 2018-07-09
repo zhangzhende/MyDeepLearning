@@ -41,13 +41,26 @@ def fully_connected(value, output_shape, name='fully_connected', with_w=False):
         biases = bias('biases', [output_shape], 0.0)
 
     if with_w:
+        """
+        matmul,这是个叉乘，mxn  nxl ==mxl
+        a: 一个类型为 float16, float32, float64, int32, complex64, complex128 且张量秩 > 1 的张量。
+        b: 一个类型跟张量a相同的张量。
+        transpose_a: 如果为真, a则在进行乘法计算前进行转置。
+        transpose_b: 如果为真, b则在进行乘法计算前进行转置。
+        adjoint_a: 如果为真, a则在进行乘法计算前进行共轭和转置。
+        adjoint_b: 如果为真, b则在进行乘法计算前进行共轭和转置。
+        a_is_sparse: 如果为真, a会被处理为稀疏矩阵。
+        b_is_sparse: 如果为真, b会被处理为稀疏矩阵。
+        name: 操作的名字（可选参数）
+        """
         return tf.matmul(value, weights) + biases, weights, biases
     else:
         return tf.matmul(value, weights) + biases
 
-
+#leaky-relu
 def lrelu(x, leak=0.2, name='lrelu'):
     with tf.variable_scope(name):
+        #下为实现
         return tf.maximum(x, leak * x, name=name)
 
 
@@ -61,6 +74,20 @@ def deconv2d(value, output_shape, k_h=5, k_w=5, strides=[1, 2, 2, 1],
     with tf.variable_scope(name):
         weights = weight('weights',
                          [k_h, k_w, output_shape[-1], value.get_shape()[-1]])
+        #反卷积
+        """
+           除去name参数用以指定该操作的name，与方法有关的一共六个参数：
+           第一个参数value：指需要做反卷积的输入图像，它要求是一个Tensor
+           第二个参数filter：卷积核，它要求是一个Tensor，具有[filter_height, filter_width, out_channels, in_channels]这样的shape，具体含义是[卷积核的高度，卷积核的宽度，卷积核个数，图像通道数]
+           第三个参数output_shape：反卷积操作输出的shape，细心的同学会发现卷积操作是没有这个参数的，那这个参数在这里有什么用呢？下面会解释这个问题
+           第四个参数strides：反卷积时在图像每一维的步长，这是一个一维的向量，长度4
+           第五个参数padding：string类型的量，只能是"SAME","VALID"其中之一，这个值决定了不同的卷积方式
+           第六个参数data_format：string类型的量，'NHWC'和'NCHW'其中之一，这是tensorflow新版本中新加的参数，它说明了value参数的数据格式。'NHWC'指tensorflow标准的数据格式[batch, height, width, in_channels]，'NCHW'指Theano的数据格式,[batch, in_channels，height, width]，当然默认值是'NHWC'
+           开始之前务必了解卷积的过程，参考我的另一篇文章：http://blog.csdn.net/mao_xiao_feng/article/details/53444333
+           又一个很重要的部分！tf.nn.conv2d中的filter参数，是[filter_height, filter_width, in_channels, out_channels]的形式，
+           而tf.nn.conv2d_transpose中的filter参数，是[filter_height, filter_width, out_channels，in_channels]的形式，
+           注意in_channels和out_channels反过来了！因为两者互为反向，所以输入输出要调换位置
+               """
         deconv = tf.nn.conv2d_transpose(value, weights,
                                         output_shape, strides=strides)
         biases = bias('biases', [output_shape[-1]])
@@ -76,6 +103,15 @@ def conv2d(value, output_dim, k_h=5, k_w=5,
     with tf.variable_scope(name):
         weights = weight('weights',
                          [k_h, k_w, value.get_shape()[-1], output_dim])
+        """
+        除去name参数用以指定该操作的name，与方法有关的一共五个参数：
+        第一个参数input：指需要做卷积的输入图像，它要求是一个Tensor，具有[batch, in_height, in_width, in_channels]这样的shape，具体含义是[训练时一个batch的图片数量, 图片高度, 图片宽度, 图像通道数]，注意这是一个4维的Tensor，要求类型为float32和float64其中之一
+        第二个参数filter：相当于CNN中的卷积核，它要求是一个Tensor，具有[filter_height, filter_width, in_channels, out_channels]这样的shape，具体含义是[卷积核的高度，卷积核的宽度，图像通道数，卷积核个数]，要求类型与参数input相同，有一个地方需要注意，第三维in_channels，就是参数input的第四维
+        第三个参数strides：卷积时在图像每一维的步长，这是一个一维的向量，长度4
+        第四个参数padding：string类型的量，只能是"SAME","VALID"其中之一，这个值决定了不同的卷积方式（后面会介绍）
+        第五个参数：use_cudnn_on_gpu:bool类型，是否使用cudnn加速，默认为true
+        结果返回一个Tensor，这个输出，就是我们常说的feature map，shape仍然是[batch, height, width, channels]这种形式。
+        """
         conv = tf.nn.conv2d(value, weights, strides=strides, padding='SAME')
         biases = bias('biases', [output_dim])
         conv = tf.reshape(tf.nn.bias_add(conv, biases), conv.get_shape())
@@ -211,6 +247,9 @@ def inputs(data_dir, batch_size, name='input'):
     with tf.name_scope(name):
         filenames = [
             os.path.join(data_dir, 'train%d.tfrecords' % ii) for ii in range(12)]
+        """
+        函数把我们需要的全部文件打包为一个tf内部的queue类型，之后tf开文件就从这个queue中取目录了，要注意一点的是这个函数的shuffle参数默认是True，也就是你传给他文件顺序是1234，但是到时候读就不一定了 
+        """
         filename_queue = tf.train.string_input_producer(filenames)
 
         image = read_and_decode(filename_queue)

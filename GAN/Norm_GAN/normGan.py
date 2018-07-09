@@ -67,6 +67,7 @@ def generator(input, hidden_size):
 
 
 def discriminator(input, hidden_size, minibatch_layer=True):
+    #双曲正切函数
     h0 = tf.tanh(linear(input, hidden_size * 2, 'd0'))
     h1 = tf.tanh(linear(h0, hidden_size * 2, 'd1'))
     if minibatch_layer:
@@ -80,17 +81,53 @@ def discriminator(input, hidden_size, minibatch_layer=True):
 def minibatch(input, num_kernels=5, kernel_dim=3):
     x = linear(input, num_kernels * kernel_dim, scope='minibatch', stddev=0.02)
     activation = tf.reshape(x, (-1, num_kernels, kernel_dim))
+    #维度增加一维
+    """
+    # 't' is a tensor of shape [2]
+    shape(expand_dims(t, 0)) ==> [1, 2]
+    shape(expand_dims(t, 1)) ==> [2, 1]
+    shape(expand_dims(t, -1)) ==> [2, 1]
+    """
     diffs = tf.expand_dims(activation, 3) - tf.expand_dims(tf.transpose(activation, [1, 2, 0]), 0)
     abs_diffs = tf.reduce_sum(tf.abs(diffs), 2)
+    """
+    reduce_sum(
+    input_tensor,
+    axis=None,
+    keep_dims=False,
+    name=None,
+    reduction_indices=None
+)
+    input_tensor:表示输入 
+    axis:表示在那个维度进行sum操作。 
+    keep_dims:表示是否保留原始数据的维度，False相当于执行完后原始数据就会少一个维度。 
+    reduction_indices:为了跟旧版本的兼容，现在已经不使用了。 
+    """
     minibatch_features = tf.reduce_sum(tf.exp(-abs_diffs), 2)
+    #连接两个矩阵的操作
+    """
+    第一个参数concat_dim：必须是一个数，表明在哪一维上连接
+     如果concat_dim是0，那么在某一个shape的第一个维度上连，对应到实际，就是叠放到列上
+    t1 = [[1, 2, 3], [4, 5, 6]]
+    t2 = [[7, 8, 9], [10, 11, 12]]
+    tf.concat(0, [t1, t2]) == > [[1, 2, 3], [4, 5, 6], [7, 8, 9], [10, 11, 12]]
+    如果concat_dim是1，那么在某一个shape的第二个维度上连 
+    t1 = [[1, 2, 3], [4, 5, 6]]
+    t2 = [[7, 8, 9], [10, 11, 12]]
+    tf.concat(1, [t1, t2]) ==> [[1, 2, 3, 7, 8, 9], [4, 5, 6, 10, 11, 12
+    """
     return tf.concat([input, minibatch_features], 1)
 
 
 def optimizer(loss, var_list, initial_learning_rate):
-    initial_learning_rate = 0.005
-    decay = 0.95
-    num_decay_steps = 150
+    initial_learning_rate = 0.005 # 学习速率
+    decay = 0.95 # 衰减速率，即每一次学习都衰减为原来的0.95
+    num_decay_steps = 150# 总学习次数
     batch = tf.Variable(0)
+    #学习率衰减
+    # 如果staircase为True,那么每decay_steps改变一次learning_rate，
+    # 改变为learning_rate*(decay_rate**decay_steps)
+    # 如果为False则，每一步都改变，为learning_rate*decay_rate
     learning_rate = tf.train.exponential_decay(
         initial_learning_rate,
         batch,
@@ -150,6 +187,12 @@ class GAN(object):
         # and create optimizer for both
         self.loss_d = tf.reduce_mean(-tf.log(self.D1) - tf.log(1 - self.D2))
         self.loss_g = tf.reduce_mean(-tf.log(self.D2))
+
+        """
+        tf.add_to_collection(‘list_name’, element)：将元素element添加到列表list_name中
+        tf.get_collection(‘list_name’)：返回名称为list_name的列表
+        tf.add_n(list)：将列表元素相加并返回
+        """
         self.d_pre_params = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='D_pre')
         self.d_params = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='Disc')
         self.g_params = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='Gen')
@@ -173,6 +216,11 @@ class GAN(object):
                 )
             self.weightsD = session.run(self.d_pre_params)
             # copy weights from pre-training over to new D network
+            """
+            在同时需要index和value值的时候可以使用 enumerate
+            for i,j in enumerate('abcde'):  
+　　          print i,j  
+            """
             for i, v in enumerate(self.d_params):
                 session.run(v.assign(self.weightsD[i]))
             for step in range(self.num_steps):
@@ -208,6 +256,7 @@ class GAN(object):
         # return a tuple (db,pd,pg), where db is the current decision boundary
         # pd is a histogram of samples from the data distribution,
         # and pf is a histogram of generated samples.
+        #用此来创建等差数列
         xs = np.linspace(-self.gen.range, self.gen.range, num_points)
         bins = np.linspace(-self.gen.range, self.gen.range, num_bins)
         # decision boundary

@@ -48,11 +48,25 @@ def upsample_tf(factor,input_img):
     number_of_classes=input_img.shape[2]
     new_height=input_img.shape[0]*factor
     new_width=input_img.shape[1]*factor
+    #拓展维度
     expanded_img=np.expand_dims(input_img,axis=0)
 
     with tf.Graph().as_default():
         with tf.Session() as sess:
             upsample_filter_np=bilinear_upsample_weight(factor,number_of_classes)
+            """
+        除去name参数用以指定该操作的name，与方法有关的一共六个参数：
+        第一个参数value：指需要做反卷积的输入图像，它要求是一个Tensor
+        第二个参数filter：卷积核，它要求是一个Tensor，具有[filter_height, filter_width, out_channels, in_channels]这样的shape，具体含义是[卷积核的高度，卷积核的宽度，卷积核个数，图像通道数]
+        第三个参数output_shape：反卷积操作输出的shape，细心的同学会发现卷积操作是没有这个参数的，那这个参数在这里有什么用呢？下面会解释这个问题
+        第四个参数strides：反卷积时在图像每一维的步长，这是一个一维的向量，长度4
+        第五个参数padding：string类型的量，只能是"SAME","VALID"其中之一，这个值决定了不同的卷积方式
+        第六个参数data_format：string类型的量，'NHWC'和'NCHW'其中之一，这是tensorflow新版本中新加的参数，它说明了value参数的数据格式。'NHWC'指tensorflow标准的数据格式[batch, height, width, in_channels]，'NCHW'指Theano的数据格式,[batch, in_channels，height, width]，当然默认值是'NHWC'
+        开始之前务必了解卷积的过程，参考我的另一篇文章：http://blog.csdn.net/mao_xiao_feng/article/details/53444333
+        又一个很重要的部分！tf.nn.conv2d中的filter参数，是[filter_height, filter_width, in_channels, out_channels]的形式，
+        而tf.nn.conv2d_transpose中的filter参数，是[filter_height, filter_width, out_channels，in_channels]的形式，
+        注意in_channels和out_channels反过来了！因为两者互为反向，所以输入输出要调换位置
+            """
             res=tf.nn.conv2d_transpose(expanded_img,upsample_filter_np,
                                        output_shape=[1,new_height,new_width,number_of_classes],
                                        strides=[1,factor,factor,1])
@@ -96,7 +110,11 @@ def imageBreak():
                 fcn8s,fcn16s,fcn32s=sess.run([endpoints["vgg_16/pool3"],endpoints["vgg_16/pool4"],endpoints["vgg_16/pool5"]])
                 upsampled_logits=upsample_tf(factor=16,input_img=fcn8s.squeeze())
                 upsampled_predictions32=upsampled_logits.squeeze().argmax(2)
-
+                """
+                对于一维数组或者列表，unique函数去除其中重复的元素，并按元素由大到小返回一个新的无元素重复的元组或者列表
+                a, s= np.unique(A, return_index=True)
+                return_index=True表示返回新列表元素在旧列表中的位置，并以列表形式储存在s中。
+                """
                 unique_classes,relabeled_image=np.unique(upsampled_predictions32,return_inverse=True)
                 relabeled_image=relabeled_image.reshape(upsampled_predictions32.shape)
 
