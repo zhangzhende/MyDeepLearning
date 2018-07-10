@@ -159,7 +159,16 @@ class CycleGAN():
 
         g_loss_A = cyc_loss * 10 + disc_loss_B
         g_loss_B = cyc_loss * 10 + disc_loss_A
-
+        """
+        tf.squared_difference
+        功能：计算(x-y)(x-y)。
+        输入：x为张量，可以为`half`,`float32`, `float64`类型。
+        例：
+        x=tf.constant([[-1,0,2]],tf.float64)
+        y=tf.constant([[2,3,4,]],tf.float64)
+        z=tf.squared_difference(x,y)
+        z==>[[9. 9. 4.]]
+        """
         d_loss_A = (tf.reduce_mean(tf.square(self.fake_pool_rec_A)) + tf.reduce_mean(
             tf.squared_difference(self.rec_A, 1))) / 2.0
         d_loss_B = (tf.reduce_mean(tf.square(self.fake_pool_rec_B)) + tf.reduce_mean(
@@ -219,8 +228,13 @@ class CycleGAN():
             fake_pool[num_fakes] = fake
             return fake
         else:
-            p = random.random()
+            p = random.random()#返回随机生成的一个实数，它在[0,1)范围内。
             if p > 0.5:
+
+                """
+                random.randint(a, b)     # 返回闭区间 [a, b] 范围内的整数值
+                numpy.random.randint(a, b)   # 返回开区间 [a, b) 范围内的整数值
+                """
                 random_id = random.randint(0, pool_size - 1)
                 temp = fake_pool[random_id]
                 fake_pool[random_id] = fake

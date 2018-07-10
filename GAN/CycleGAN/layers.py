@@ -15,10 +15,20 @@ def instance_norm(x):
 
     with tf.variable_scope("instance_norm"):
         epsilon = 1e-5
+        """
+        def moments(x, axes, name=None, keep_dims=False)
+        参数解释：
+        ·x 可以理解为我们输出的数据，形如 [batchsize, height, width, kernels]
+        ·axes 表示在哪个维度上求解，是个list，例如 [0, 1, 2]
+        ·name 就是个名字，不多解释
+        ·keep_dims 是否保持维度，不多解释
+        这个函数的输出就是BN需要的mean和variance
+        """
         mean, var = tf.nn.moments(x, [1, 2], keep_dims=True)
         scale = tf.get_variable('scale',[x.get_shape()[-1]], 
             initializer=tf.truncated_normal_initializer(mean=1.0, stddev=0.02))
         offset = tf.get_variable('offset',[x.get_shape()[-1]],initializer=tf.constant_initializer(0.0))
+        # tf.div对应元素 相除
         out = scale*tf.div(x-mean, tf.sqrt(var+epsilon)) + offset
 
         return out

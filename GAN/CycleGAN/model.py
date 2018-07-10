@@ -29,9 +29,34 @@ ndf = 64
 
 
 def build_resnet_block(inputres, dim, name="resnet"):
-    
+    """
+    创建残差网络块
+    :param inputres: 
+    :param dim: 
+    :param name: 
+    :return: 
+    """
     with tf.variable_scope(name):
-
+        """
+        pad(tensor, paddings, mode="CONSTANT", name=None, constant_values=0
+        tensor是要填充的张量 
+        padings 也是一个张量，代表每一维填充多少行/列，但是有一个要求它的rank一定要和tensor的rank是一样的
+        mode 可以取三个值，分别是"CONSTANT" ,"REFLECT","SYMMETRIC"
+        mode="CONSTANT" 是填充0
+        mode="REFLECT"是映射填充，上下（1维）填充顺序和paddings是相反的，左右（零维）顺序补齐
+        mode="SYMMETRIC"是对称填充，上下（1维）填充顺序是和paddings相同的，左右（零维）对称补齐
+本例使用的tensor都是rank=2的，注意paddings的rank也要等于2，否则报错
+padding
+{
+for example：
+t=[[2,3,4],[5,6,7]],paddings=[[1,1],[2,2]]，mode="CONSTANT"
+那么sess.run(tf.pad(t,paddings,"CONSTANT"))的输出结果为：
+array([[0, 0, 0, 0, 0, 0, 0],
+          [0, 0, 2, 3, 4, 0, 0],
+          [0, 0, 5, 6, 7, 0, 0],
+          [0, 0, 0, 0, 0, 0, 0]], dtype=int32)
+可以看到，上，下，左，右分别填充了1,1,2,2行刚好和paddings=[[1,1],[2,2]]相等，零填充
+        """
         out_res = tf.pad(inputres, [[0, 0], [1, 1], [1, 1], [0, 0]], "REFLECT")
         out_res = general_conv2d(out_res, dim, 3, 3, 1, 1, 0.02, "VALID","c1")
         out_res = tf.pad(out_res, [[0, 0], [1, 1], [1, 1], [0, 0]], "REFLECT")
@@ -41,6 +66,13 @@ def build_resnet_block(inputres, dim, name="resnet"):
 
 
 def build_generator_resnet_6blocks(inputgen, name="generator"):
+    """
+    6重残差网络
+    拓展--》卷积*3--》残差网络块*6--》反卷积*2--》拓展--》卷积---》tanh激活
+    :param inputgen: 
+    :param name: 
+    :return: 
+    """
     with tf.variable_scope(name):
         f = 7
         ks = 3
@@ -70,6 +102,13 @@ def build_generator_resnet_6blocks(inputgen, name="generator"):
         return out_gen
 
 def build_generator_resnet_9blocks(inputgen, name="generator"):
+    """
+    9重残差网络
+    拓展--》卷积*3--》残差网络块*9--》反卷积*2--》卷积---》tanh激活
+    :param inputgen: 
+    :param name: 
+    :return: 
+    """
     with tf.variable_scope(name):
         f = 7
         ks = 3
@@ -102,7 +141,12 @@ def build_generator_resnet_9blocks(inputgen, name="generator"):
 
 
 def build_gen_discriminator(inputdisc, name="discriminator"):
-
+    """
+    判别器，卷积*5
+    :param inputdisc: 
+    :param name: 
+    :return: 
+    """
     with tf.variable_scope(name):
         f = 4
 
@@ -116,10 +160,18 @@ def build_gen_discriminator(inputdisc, name="discriminator"):
 
 
 def patch_discriminator(inputdisc, name="discriminator"):
-
+    """
+    卷积*5
+    :param inputdisc: 
+    :param name: 
+    :return: 
+    """
     with tf.variable_scope(name):
         f= 4
-
+        """
+        tf.random_crop
+        随机修剪一个Tensor到指定value大小。
+        """
         patch_input = tf.random_crop(inputdisc,[1,70,70,3])
         o_c1 = general_conv2d(patch_input, ndf, f, f, 2, 2, 0.02, "SAME", "c1", do_norm="False", relufactor=0.2)
         o_c2 = general_conv2d(o_c1, ndf*2, f, f, 2, 2, 0.02, "SAME", "c2", relufactor=0.2)
